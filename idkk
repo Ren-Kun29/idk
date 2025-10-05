@@ -1,0 +1,822 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>PCC Calendar</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root { font-family: 'Inter', system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
+    .message-box { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(.98); padding: 1.25rem; background: #fff; border-radius: 0.75rem; box-shadow: 0 12px 30px rgba(0,0,0,0.18); z-index: 60; text-align: center; opacity: 0; visibility: hidden; transition: opacity .22s ease, transform .22s ease, visibility .22s; }
+    .message-box.show { opacity: 1; visibility: visible; transform: translate(-50%, -50%) scale(1); }
+    #eventModal { transition: opacity .22s ease, visibility .22s ease; opacity: 0; visibility: hidden; pointer-events: none; }
+    #eventModal.show { opacity: 1; visibility: visible; pointer-events: auto; }
+    #eventModal .modal-card { transform: translateY(8px) scale(.98); transition: transform .22s ease, opacity .22s ease; opacity: 0; }
+    #eventModal.show .modal-card { transform: translateY(0) scale(1); opacity: 1; }
+    .mini-calendar-container { position: absolute; top: 3.2rem; left: 12rem; transform: translateX(-50%); z-index: 30; background: white; border-radius: 0.75rem; box-shadow: 0 8px 20px rgba(0,0,0,0.12); padding: 0.75rem; width: 260px; transition: opacity .18s ease, transform .18s ease, visibility .18s; opacity: 0; visibility: hidden; transform: translateY(-8px) scale(.98); }
+    .mini-calendar-container.show { opacity: 1; visibility: visible; transform: translateY(0) scale(1); }
+    .event-dot { width: 8px; height: 8px; border-radius: 999px; position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); }
+    .pending-dot { background:#2563eb; }
+    .approved-dot { background:#16a34a; }
+    .disapproved-dot { background:#ef4444; }
+    @media (max-width: 900px) { aside { display: none; } .main-wrapper { padding-left: 1rem; padding-right: 1rem; } .mini-calendar-container { left: 50%; transform: translateX(-50%); } }
+    .viewer-role #newEventTopBtn, .viewer-role .approve-btn, .viewer-role .disapprove-btn, .viewer-role [data-action="manage"], .viewer-role #approvalModal { display: none !important; }
+  </style>
+</head>
+<body class="min-h-screen antialiased bg-gray-50">
+  <!-- LOGIN PAGE -->
+  <div id="login-page" class="w-full h-screen flex items-center justify-center bg-red-800 text-white">
+    <div class="max-w-sm w-full p-10 rounded-3xl shadow-2xl transform transition-all duration-300 bg-gradient-to-b from-red-800 to-red-700">
+      <div class="flex justify-center mb-6">
+        <img src="https://scontent.fcrk3-4.fna.fbcdn.net/v/t39.30808-6/309222914_471809794990504_5947876244812173554_n.png?_nc_cat=108&ccb=1-7&_nc_sid=6ee11a&_nc_eui2=AeG72NUGriaPqZKTyLZqrqqjjjDnZbGC9hCOMOdlsYL2EDm_0D6P5VcSCx91vKUu02Ud70X4JeMJlcGdcepZVapt&_nc_ohc=SvIrjKUvEwEQ7kNvwFX735H&_nc_oc=Admi2gT2aIhYieS2Wq-ZhT-cjB4ODcU0_W7khvWSJIe9D2YVwqO9nLuNo5EHuUhLiNs&_nc_zt=23&_nc_ht=scontent.fcrk3-4.fna&_nc_gid=6eorHh91fTFyjd0F9g-ehg&oh=00_AfamS0SEOmAJoPMqySvbCiviuHt8fURs8OxAKpj7gOdllg&oe=68CFA266" alt="Logo" class="w-20 h-20 rounded-full object-cover border-2 border-red-900/40" />
+      </div>
+      <h2 class="text-4xl font-extrabold text-center mb-6">Login</h2>
+      <form id="loginForm" class="space-y-5">
+        <div>
+          <label class="block text-sm mb-2">Email or Username</label>
+          <input id="email" type="text" placeholder="Enter your email or username" class="w-full px-5 py-3 rounded-full bg-gray-800/30 placeholder-gray-300 text-white border border-red-900 focus:outline-none focus:ring-2 focus:ring-red-500" />
+        </div>
+        <div>
+          <label class="block text-sm mb-2">Password</label>
+          <input id="password" type="password" placeholder="••••••••" class="w-full px-5 py-3 rounded-full bg-gray-800/30 placeholder-gray-300 text-white border border-red-900 focus:outline-none focus:ring-2 focus:ring-red-500" />
+        </div>
+        <div class="flex justify-end text-sm"><a href="#" class="text-red-200 hover:underline">Forgot Password?</a></div>
+        <div><button type="submit" class="w-full py-3 rounded-full bg-red-600 hover:bg-red-700 font-semibold shadow">Log in</button></div>
+        <div class="flex items-center my-4 space-x-3">
+          <div class="flex-1 h-px bg-red-900/30"></div>
+          <div class="text-sm text-red-200">or</div>
+          <div class="flex-1 h-px bg-red-900/30"></div>
+        </div>
+        <div class="text-center text-sm text-red-200">Don't have an account? <a href="#" class="underline">Sign up</a></div>
+      </form>
+    </div>
+  </div>
+  <!-- DASHBOARD -->
+  <div id="calendar-dashboard" class="hidden min-h-screen flex">
+    <!-- SIDEBAR -->
+    <aside class="w-64 bg-red-800 text-white flex flex-col p-6">
+      <div class="flex flex-col h-full justify-between">
+        <div>
+          <div class="flex items-center gap-4 mb-8">
+            <div class="w-20 h-20 rounded-full overflow-hidden border-2 border-white shadow">
+              <img src="https://images.pexels.com/photos/189349/pexels-photo-189349.jpeg?cs=srgb&dl=pexels-sebastian-189349.jpg&fm=jpg" alt="Profile" class="w-full h-full object-cover">
+            </div>
+            <div>
+              <div class="text-lg font-semibold">Hello, Harvey</div>
+              <div class="text-sm text-white/80">Welcome back!</div>
+            </div>
+          </div>
+          <nav class="space-y-3">
+            <button data-view="home" class="nav-btn flex items-center gap-3 w-full text-left px-3 py-2 rounded-lg hover:bg-red-700">
+              <svg class="w-5 h-5 text-white/80" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2L2 8v8a2 2 0 002 2h4v-6h4v6h4a2 2 0 002-2V8l-8-6z"/></svg>
+              <span>Home</span>
+            </button>
+            <button data-view="calendar" class="nav-btn nav-active flex items-center gap-3 w-full text-left px-3 py-2 rounded-lg hover:bg-red-700">
+              <svg class="w-5 h-5 text-white/80" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10h5v5H7z"/><path d="M7 3h1V1h2v2h4V1h2v2h1a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V7a2 2 0 012-2h1V3z"/></svg>
+              <span>Calendar</span>
+            </button>
+            <button data-view="settings" class="nav-btn flex items-center gap-3 w-full text-left px-3 py-2 rounded-lg hover:bg-red-700">
+              <svg class="w-5 h-5 text-white/80" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8a4 4 0 100 8 4 4 0 000-8z"/><path d="M19.4 12.9c.04-.3.06-.6.06-.9s-.02-.6-.06-.9l2.11-1.65a.5.5 0 00.12-.64l-2-3.46a.5.5 0 00-.6-.22l-2.49 1a7.03 7.03 0 00-1.56-.9l-.38-2.65A.5.5 0 0013.5 2h-3a.5.5 0 00-.49.42l-.38 2.65c-.56.22-1.08.52-1.56.9l-2.49-1a.5.5 0 00-.6.22l-2 3.46a.5.5 0 00.12.64L4.6 11.1c-.04.3-.06.6-.06.9s.02.6.06.9L2.49 14.6a.5.5 0 00-.12.64l2 3.46c.14.24.44.34.68.22l2.49-1c.48.38.98.68 1.56.9l.38 2.65c.06.28.3.42.49.42h3c.19 0 .43-.14.49-.42l.38-2.65c.58-.22 1.08-.52 1.56-.9l2.49 1c.24.12.54.02.68-.22l2-3.46a.5.5 0 00-.12-.64L19.4 12.9z"/></svg>
+              <span>Settings</span>
+            </button>
+            <button data-view="logs" class="nav-btn flex items-center gap-3 w-full text-left px-3 py-2 rounded-lg hover:bg-red-700">
+              <svg class="w-5 h-5 text-white/80" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5v14a2 2 0 002 2h14v-2H5V5H3zm16-4h-9l-2 2h-4v2h15V1z"/></svg>
+              <span>Logs</span>
+            </button>
+          </nav>
+        </div>
+        <div class="text-sm text-white/70">
+          <div class="mb-2">Signed in as</div>
+          <div class="font-medium">harvey@example.com</div>
+          <div class="mt-4"><button id="logoutBtn" class="w-full text-left text-red-300 hover:underline">Sign out</button></div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN AREA -->
+    <div class="flex-1 flex flex-col main-wrapper">
+      <header class="bg-red-800 text-white p-4 flex justify-between items-center shadow">
+        <h2 class="text-lg font-bold">Dashboard</h2>
+        <button id="newEventTopBtn" class="bg-red-900 hover:bg-red-950 px-4 py-2 rounded text-white">+ New Event</button>
+      </header>
+      <main class="flex-1 overflow-auto px-6 pb-10">
+        <section id="view-home" class="view hidden">
+          <div class="rounded-2xl bg-white p-8 shadow">
+            <h2 class="text-2xl font-semibold mb-4">Quick Summary</h2>
+            <p class="text-gray-600">Welcome to your calendar dashboard. Click <strong>Calendar</strong> on the left to manage events, or <strong>Logs</strong> to see activity.</p>
+          </div>
+        </section>
+        <section id="view-calendar" class="view">
+          <div class="rounded-2xl bg-white p-6 shadow">
+            <div class="flex items-center justify-between mb-6 relative">
+              <div class="flex items-center gap-3">
+                <select id="monthSelector" class="px-4 py-2 rounded-full border bg-gray-100"></select>
+                <select id="yearSelector" class="px-4 py-2 rounded-full border bg-gray-100"></select>
+                <button id="miniCalendarToggleBtn" class="ml-2 p-2 rounded-full bg-gray-50 border" title="Mini calendar">
+                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+              </div>
+              <div class="flex items-center gap-2">
+                <button id="prevMonthBtn" class="px-3 py-2 rounded-full border bg-gray-50">Prev</button>
+                <button id="nextMonthBtn" class="px-3 py-2 rounded-full border bg-gray-50">Next</button>
+              </div>
+              <div id="mini-calendar-container" class="mini-calendar-container">
+                <div class="flex items-center justify-between mb-3">
+                  <button id="miniPrevMonthBtn" class="p-2 rounded-full hover:bg-gray-100">◀</button>
+                  <div id="miniCalendarTitle" class="font-medium"></div>
+                  <button id="miniNextMonthBtn" class="p-2 rounded-full hover:bg-gray-100">▶</button>
+                </div>
+                <div id="mini-calendar-grid" class="grid grid-cols-7 gap-1 text-xs text-center"></div>
+              </div>
+            </div>
+            <div id="calendar" class="grid grid-cols-7 gap-y-6 text-center text-sm"></div>
+          </div>
+        </section>
+        <section id="view-settings" class="view hidden">
+          <div class="rounded-2xl bg-white p-8 shadow">
+            <h2 class="text-2xl font-semibold mb-4">Settings</h2>
+            <p class="text-gray-600">Settings placeholder (theme, account, notifications) — add your controls here.</p>
+          </div>
+        </section>
+        <section id="view-logs" class="view hidden">
+          <div class="rounded-2xl bg-white p-6 shadow">
+            <div class="flex justify-between items-center mb-4">
+              <h2 class="text-2xl font-semibold">Activity Logs</h2>
+              <div class="flex gap-3"><button id="clearLogsBtn" class="px-3 py-2 rounded-full border text-sm">Clear Logs</button></div>
+            </div>
+            <div id="logsList" class="space-y-3 max-h-96 overflow-auto"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <!-- MESSAGE BOX -->
+  <div id="messageBox" class="message-box">
+    <p id="messageText"></p>
+    <div class="mt-4"><button id="messageCloseBtn" class="px-4 py-2 rounded-full bg-red-600 text-white">OK</button></div>
+  </div>
+
+  <!-- APPROVAL MODAL -->
+  <div id="approvalModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-[999] opacity-0 transition-opacity duration-300">
+    <div class="modal-content bg-white rounded-lg shadow-lg w-96 p-6 transform scale-95 transition-transform duration-300">
+      <h2 id="approvalModalTitle" class="text-xl font-bold mb-2">Event Decision</h2>
+      <div id="approvalEventText" class="text-lg font-semibold mb-1"></div>
+      <div id="approvalEventMeta" class="text-xs text-gray-500 mb-3"></div>
+      <div id="approvalEventSuggestion" class="text-sm text-gray-700 mb-4"></div>
+      <div class="flex justify-end gap-3">
+        <button id="approvalRejectBtn" class="px-4 py-2 rounded-lg bg-red-100 text-red-700">Reject</button>
+        <button id="approvalApproveBtn" class="px-4 py-2 rounded-lg bg-green-100 text-green-700">Approve</button>
+        <button id="approvalModalClose" class="px-4 py-2 bg-gray-300 rounded-lg">Close</button>
+      </div>
+    </div>
+  </div>
+  <!-- EVENT MODAL (Modern Themed Design) -->
+  <div id="eventModal" class="fixed inset-0 flex items-center justify-center z-50">
+    <div id="modalBackdrop" class="absolute inset-0 bg-black/40"></div>
+    <div class="modal-card relative bg-white w-full max-w-3xl shadow-2xl max-h-[90vh] overflow-y-auto rounded-2xl">
+      <button id="closeModalBtn" class="absolute top-6 right-6 text-gray-400 hover:text-gray-600 text-2xl z-10">✕</button>
+      
+      <!-- Header -->
+      <div class="bg-gradient-to-r from-red-800 to-red-700 text-white p-6 rounded-t-2xl">
+        <div class="text-sm opacity-90 mb-2">PASIG CATHOLIC COLLEGE</div>
+        <h2 class="text-2xl font-bold">Facility Use Request Form</h2>
+      </div>
+
+      <div class="p-6 space-y-6">
+        <!-- Event Title -->
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Event Title / Purpose *</label>
+          <input id="eventInput" type="text" placeholder="Enter event title or purpose" class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none transition" />
+        </div>
+
+        <!-- Venue Selection -->
+        <div class="bg-gray-50 rounded-xl p-5 border border-gray-200">
+          <div class="flex items-center gap-2 mb-4">
+            <svg class="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 20 20"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/></svg>
+            <h3 class="font-bold text-gray-800">Select Venue(s) *</h3>
+          </div>
+          <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <label class="flex items-center gap-2 p-3 bg-white rounded-lg border border-gray-200 hover:border-red-300 hover:bg-red-50 cursor-pointer transition">
+              <input type="checkbox" class="venue-check w-4 h-4 text-red-600 rounded focus:ring-2 focus:ring-red-500" value="Aula Minor">
+              <span class="text-sm">Aula Minor</span>
+            </label>
+            <label class="flex items-center gap-2 p-3 bg-white rounded-lg border border-gray-200 hover:border-red-300 hover:bg-red-50 cursor-pointer transition">
+              <input type="checkbox" class="venue-check w-4 h-4 text-red-600 rounded focus:ring-2 focus:ring-red-500" value="San Pedro Calungsod Hall">
+              <span class="text-sm">San Pedro Calungsod Hall</span>
+            </label>
+            <label class="flex items-center gap-2 p-3 bg-white rounded-lg border border-gray-200 hover:border-red-300 hover:bg-red-50 cursor-pointer transition">
+              <input type="checkbox" class="venue-check w-4 h-4 text-red-600 rounded focus:ring-2 focus:ring-red-500" value="Selte Carlo Acutis Hall">
+              <span class="text-sm">Carlo Acutis Hall</span>
+            </label>
+            <label class="flex items-center gap-2 p-3 bg-white rounded-lg border border-gray-200 hover:border-red-300 hover:bg-red-50 cursor-pointer transition">
+              <input type="checkbox" class="venue-check w-4 h-4 text-red-600 rounded focus:ring-2 focus:ring-red-500" value="San Lorenzo Ruiz Hall">
+              <span class="text-sm">San Lorenzo Hall</span>
+            </label>
+            <label class="flex items-center gap-2 p-3 bg-white rounded-lg border border-gray-200 hover:border-red-300 hover:bg-red-50 cursor-pointer transition">
+              <input type="checkbox" class="venue-check w-4 h-4 text-red-600 rounded focus:ring-2 focus:ring-red-500" value="Canossa Hall">
+              <span class="text-sm">Swimming pool</span>
+            </label>
+            <label class="flex items-center gap-2 p-3 bg-white rounded-lg border border-gray-200 hover:border-red-300 hover:bg-red-50 cursor-pointer transition">
+              <input type="checkbox" class="venue-check w-4 h-4 text-red-600 rounded focus:ring-2 focus:ring-red-500" value="Seminee Room">
+              <span class="text-sm">Seminee Room</span>
+            </label>
+            <label class="flex items-center gap-2 p-3 bg-white rounded-lg border border-gray-200 hover:border-red-300 hover:bg-red-50 cursor-pointer transition">
+              <input type="checkbox" class="venue-check w-4 h-4 text-red-600 rounded focus:ring-2 focus:ring-red-500" value="Classrooms">
+              <span class="text-sm">Classrooms</span>
+            </label>
+            <label class="flex items-center gap-2 p-3 bg-white rounded-lg border border-gray-200 hover:border-red-300 hover:bg-red-50 cursor-pointer transition">
+              <input type="checkbox" class="venue-check w-4 h-4 text-red-600 rounded focus:ring-2 focus:ring-red-500" value="St. Joseph Gymnasium">
+              <span class="text-sm">Gymnasium</span>
+            </label>
+            <label class="flex items-center gap-2 p-3 bg-white rounded-lg border border-gray-200 hover:border-red-300 hover:bg-red-50 cursor-pointer transition">
+              <input type="checkbox" class="venue-check w-4 h-4 text-red-600 rounded focus:ring-2 focus:ring-red-500" value="Athletic Jewel">
+              <span class="text-sm">Athletic Jewel</span>
+            </label>
+            <label class="flex items-center gap-2 p-3 bg-white rounded-lg border border-gray-200 hover:border-red-300 hover:bg-red-50 cursor-pointer transition">
+              <input type="checkbox" class="venue-check w-4 h-4 text-red-600 rounded focus:ring-2 focus:ring-red-500" value="St. Michael Hall">
+              <span class="text-sm">St. Michael Hall</span>
+            </label>
+            <label class="flex items-center gap-2 p-3 bg-white rounded-lg border border-gray-200 hover:border-red-300 hover:bg-red-50 cursor-pointer transition">
+              <input type="checkbox" class="venue-check w-4 h-4 text-red-600 rounded focus:ring-2 focus:ring-red-500" value="Facade">
+              <span class="text-sm">Facade</span>
+            </label>
+            <label class="flex items-center gap-2 p-3 bg-white rounded-lg border border-gray-200 hover:border-red-300 hover:bg-red-50 cursor-pointer transition">
+              <input type="checkbox" class="venue-check w-4 h-4 text-red-600 rounded focus:ring-2 focus:ring-red-500" value="Tabanan">
+              <span class="text-sm"></span>
+            </label>
+            <label class="flex items-center gap-2 p-3 bg-white rounded-lg border border-gray-200 hover:border-red-300 hover:bg-red-50 cursor-pointer transition">
+              <input type="checkbox" class="venue-check w-4 h-4 text-red-600 rounded focus:ring-2 focus:ring-red-500" value="Holy Family Stage">
+              <span class="text-sm">Main Stage</span>
+            </label>
+            <label class="flex items-center gap-2 p-3 bg-white rounded-lg border border-gray-200 hover:border-red-300 hover:bg-red-50 cursor-pointer transition">
+              <input type="checkbox" class="venue-check w-4 h-4 text-red-600 rounded focus:ring-2 focus:ring-red-500" value="Others">
+              <span class="text-sm">Others</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Event Details Grid -->
+        <div class="grid md:grid-cols-2 gap-6">
+          <!-- Left Column -->
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-2">Date of Use</label>
+              <input id="eventDate" type="text" readonly class="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-lg text-gray-600" />
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-2">Time Range *</label>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1">From</label>
+                  <input id="timeFrom" type="time" class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none" />
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1">To</label>
+                  <input id="timeTo" type="time" class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none" />
+                </div>
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-2">Expected Attendees</label>
+              <input id="attendees" type="number" placeholder="Number of participants" class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none" />
+            </div>
+          </div>
+
+          <!-- Right Column -->
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Equipment / Materials Needed</label>
+            <textarea id="eventSuggestion" rows="8" placeholder="List any equipment, materials, or special requirements..." class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none resize-none"></textarea>
+          </div>
+        </div>
+
+        <!-- Submit Button -->
+        <div class="flex justify-center pt-2">
+          <button id="addEventBtn" class="px-8 py-3 bg-gradient-to-r from-red-700 to-red-600 hover:from-red-800 hover:to-red-700 text-white font-bold rounded-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition">
+            Submit Request
+          </button>
+        </div>
+
+        <!-- Existing Events List -->
+        <div id="eventsList" class="space-y-3 pt-6 border-t-2 border-gray-100"></div>
+
+        <!-- Important Notes -->
+        <div class="bg-red-50 border-l-4 border-red-600 p-4 rounded-r-lg">
+          <div class="flex items-start gap-3">
+            <svg class="w-5 h-5 text-red-600 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
+            <div>
+              <h4 class="font-bold text-red-800 mb-1">Important Notes</h4>
+              <ul class="text-sm text-red-700 space-y-1">
+                <li>• Requests must be submitted at least 3 days in advance</li>
+                <li>• Additional charges may apply for extended use or special equipment</li>
+                <li>• Approval is subject to availability and institutional policies</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div><script>
+// DOM Elements
+const loginPage = document.getElementById('login-page');
+const dashboard = document.getElementById('calendar-dashboard');
+const views = {
+  home: document.getElementById('view-home'),
+  calendar: document.getElementById('view-calendar'),
+  settings: document.getElementById('view-settings'),
+  logs: document.getElementById('view-logs')
+};
+const navBtns = Array.from(document.querySelectorAll('.nav-btn'));
+const messageBox = document.getElementById('messageBox');
+const messageText = document.getElementById('messageText');
+const messageCloseBtn = document.getElementById('messageCloseBtn');
+const calendarEl = document.getElementById('calendar');
+const monthSelector = document.getElementById('monthSelector');
+const yearSelector = document.getElementById('yearSelector');
+const miniCalendarToggleBtn = document.getElementById('miniCalendarToggleBtn');
+const miniCalendarContainer = document.getElementById('mini-calendar-container');
+const miniCalendarTitle = document.getElementById('miniCalendarTitle');
+const miniCalendarGrid = document.getElementById('mini-calendar-grid');
+const miniPrevMonthBtn = document.getElementById('miniPrevMonthBtn');
+const miniNextMonthBtn = document.getElementById('miniNextMonthBtn');
+const prevMonthBtn = document.getElementById('prevMonthBtn');
+const nextMonthBtn = document.getElementById('nextMonthBtn');
+const modalEl = document.getElementById('eventModal');
+const modalBackdrop = document.getElementById('modalBackdrop');
+const eventInput = document.getElementById('eventInput');
+const eventSuggestion = document.getElementById('eventSuggestion');
+const addEventBtn = document.getElementById('addEventBtn');
+const eventsListEl = document.getElementById('eventsList');
+const closeModalBtn = document.getElementById('closeModalBtn');
+const approvalModal = document.getElementById('approvalModal');
+const approvalModalClose = document.getElementById('approvalModalClose');
+const approvalApproveBtn = document.getElementById('approvalApproveBtn');
+const approvalRejectBtn = document.getElementById('approvalRejectBtn');
+const approvalEventText = document.getElementById('approvalEventText');
+const approvalEventMeta = document.getElementById('approvalEventMeta');
+const approvalEventSuggestion = document.getElementById('approvalEventSuggestion');
+const logsListEl = document.getElementById('logsList');
+const clearLogsBtn = document.getElementById('clearLogsBtn');
+const loginForm = document.getElementById('loginForm');
+const emailInput = document.getElementById('email');
+const passwordInput = document.getElementById('password');
+const logoutBtn = document.getElementById('logoutBtn');
+const newEventTopBtn = document.getElementById('newEventTopBtn');
+
+// State
+let currentMainDate = new Date();
+let currentMiniDate = new Date();
+let events = {};
+let logs = [];
+let currentApproval = { date: null, index: null };
+const STORAGE_KEY_EVENTS = 'pcc_events_v2';
+const STORAGE_KEY_LOGS = 'pcc_logs_v2';
+
+// Helper Functions
+function showMessage(msg) {
+  messageText.textContent = msg;
+  messageBox.classList.add('show');
+}
+messageCloseBtn.addEventListener('click', () => messageBox.classList.remove('show'));
+
+function saveState() {
+  localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(events));
+  localStorage.setItem(STORAGE_KEY_LOGS, JSON.stringify(logs));
+}
+
+function loadState() {
+  try {
+    events = JSON.parse(localStorage.getItem(STORAGE_KEY_EVENTS)) || {};
+    logs = JSON.parse(localStorage.getItem(STORAGE_KEY_LOGS)) || [];
+  } catch (e) {
+    events = {};
+    logs = [];
+  }
+}
+
+function isLeapYear(y) {
+  return (y % 4 === 0 && y % 100 !== 0) || (y % 400 === 0);
+}
+
+function getDaysInMonth(y, m) {
+  return [31, isLeapYear(y) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m];
+}
+
+function pad(n) {
+  return String(n).padStart(2, '0');
+}
+
+function formatDateISO(year, monthIndex, day) {
+  return `${year}-${pad(monthIndex + 1)}-${pad(day)}`;
+}
+
+// Navigation
+function showView(name) {
+  Object.values(views).forEach(v => v.classList.add('hidden'));
+  if (views[name]) views[name].classList.remove('hidden');
+  navBtns.forEach(btn => btn.classList.toggle('nav-active', btn.dataset.view === name));
+  if (name === 'logs') renderLogs();
+  if (name === 'calendar') renderMainCalendar();
+}
+navBtns.forEach(btn => btn.addEventListener('click', () => showView(btn.dataset.view)));
+
+// Login
+loginForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const u = emailInput.value.trim(), p = passwordInput.value.trim();
+  document.body.classList.remove('viewer-role');
+  if (u === 'Harvey' && p === '123') {
+    loginPage.classList.add('hidden');
+    dashboard.classList.remove('hidden');
+    showView('calendar');
+    document.querySelector(".text-lg.font-semibold").textContent = "Hello, Harvey";
+    document.querySelector(".font-medium").textContent = "harvey@example.com";
+  } else if (u === 'Viewer' && p === '123') {
+    loginPage.classList.add('hidden');
+    dashboard.classList.remove('hidden');
+    showView('calendar');
+    document.querySelector(".text-lg.font-semibold").textContent = "Hello, Viewer";
+    document.querySelector(".font-medium").textContent = "viewer@example.com";
+    document.body.classList.add('viewer-role');
+  } else {
+    showMessage('Invalid username or password. Try Harvey / 123 or Viewer / 123.');
+  }
+});
+
+logoutBtn.addEventListener('click', () => {
+  dashboard.classList.add('hidden');
+  loginPage.classList.remove('hidden');
+});
+
+newEventTopBtn.addEventListener('click', () => {
+  const ds = formatDateISO(currentMainDate.getFullYear(), currentMainDate.getMonth(), currentMainDate.getDate());
+  openModal(ds);
+});
+
+// Month/Year Selectors
+function populateSelectors() {
+  const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  monthSelector.innerHTML = '';
+  months.forEach((m, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = m;
+    monthSelector.appendChild(opt);
+  });
+  yearSelector.innerHTML = '';
+  const nowYear = new Date().getFullYear();
+  for (let y = nowYear - 5; y <= nowYear + 5; y++) {
+    const opt = document.createElement('option');
+    opt.value = y;
+    opt.textContent = y;
+    yearSelector.appendChild(opt);
+  }
+  updateSelectors();
+}
+
+function updateSelectors() {
+  monthSelector.value = currentMainDate.getMonth();
+  yearSelector.value = currentMainDate.getFullYear();
+}
+
+monthSelector.addEventListener('change', (e) => {
+  currentMainDate.setMonth(parseInt(e.target.value));
+  renderMainCalendar();
+});
+yearSelector.addEventListener('change', (e) => {
+  currentMainDate.setFullYear(parseInt(e.target.value));
+  renderMainCalendar();
+});
+prevMonthBtn.addEventListener('click', () => {
+  currentMainDate.setMonth(currentMainDate.getMonth() - 1);
+  renderMainCalendar();
+});
+nextMonthBtn.addEventListener('click', () => {
+  currentMainDate.setMonth(currentMainDate.getMonth() + 1);
+  renderMainCalendar();
+});
+
+// Render Main Calendar
+function renderMainCalendar() {
+  calendarEl.innerHTML = '';
+  const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  daysOfWeek.forEach(d => {
+    const h = document.createElement('div');
+    h.className = 'font-semibold text-gray-500';
+    h.textContent = d;
+    calendarEl.appendChild(h);
+  });
+
+  const year = currentMainDate.getFullYear();
+  const month = currentMainDate.getMonth();
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = getDaysInMonth(year, month);
+  const today = new Date();
+
+  for (let i = 0; i < firstDay; i++) {
+    const blank = document.createElement('div');
+    calendarEl.appendChild(blank);
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const date = new Date(year, month, d);
+    const dateString = formatDateISO(year, month, d);
+    const cell = document.createElement('div');
+    cell.className = 'relative p-3 rounded-lg hover:bg-gray-50 cursor-pointer';
+    cell.textContent = d;
+    cell.dataset.date = dateString;
+
+    if (date.toDateString() === today.toDateString()) {
+      cell.classList.add('ring-2', 'ring-red-300');
+    }
+
+    if (events[dateString] && events[dateString].length) {
+      const status = events[dateString][0].status || 'pending';
+      const dot = document.createElement('div');
+      dot.className = 'event-dot ' + (status === 'approved' ? 'approved-dot' : status === 'disapproved' ? 'disapproved-dot' : 'pending-dot');
+      cell.appendChild(dot);
+    }
+
+    cell.addEventListener('click', () => openModal(dateString));
+    calendarEl.appendChild(cell);
+  }
+
+  updateSelectors();
+  renderMiniCalendar();
+}
+
+// Mini Calendar
+miniCalendarToggleBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  miniCalendarContainer.classList.toggle('show');
+});
+miniPrevMonthBtn.addEventListener('click', () => {
+  currentMiniDate.setMonth(currentMiniDate.getMonth() - 1);
+  renderMiniCalendar();
+});
+miniNextMonthBtn.addEventListener('click', () => {
+  currentMiniDate.setMonth(currentMiniDate.getMonth() + 1);
+  renderMiniCalendar();
+});
+
+function renderMiniCalendar() {
+  miniCalendarGrid.innerHTML = '';
+  const year = currentMiniDate.getFullYear();
+  const month = currentMiniDate.getMonth();
+  miniCalendarTitle.textContent = `${currentMiniDate.toLocaleString('default', { month: 'long' })} ${year}`;
+
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = getDaysInMonth(year, month);
+
+  const days = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  days.forEach(d => {
+    const el = document.createElement('div');
+    el.className = 'font-semibold text-gray-500';
+    el.textContent = d;
+    miniCalendarGrid.appendChild(el);
+  });
+
+  for (let i = 0; i < firstDay; i++) {
+    miniCalendarGrid.appendChild(document.createElement('div'));
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    const cell = document.createElement('div');
+    cell.className = 'p-1 rounded-full text-center cursor-pointer hover:bg-gray-200 text-xs relative';
+    cell.textContent = d;
+    const dateString = formatDateISO(year, month, d);
+    if (events[dateString] && events[dateString].length) {
+      const status = events[dateString][0].status || 'pending';
+      const dot = document.createElement('div');
+      dot.className = 'event-dot ' + (status === 'approved' ? 'approved-dot' : status === 'disapproved' ? 'disapproved-dot' : 'pending-dot');
+      dot.style.width = '6px';
+      dot.style.height = '6px';
+      dot.style.bottom = '4px';
+      cell.appendChild(dot);
+    }
+    cell.addEventListener('click', () => {
+      currentMainDate = new Date(year, month, d);
+      renderMainCalendar();
+      miniCalendarContainer.classList.remove('show');
+    });
+    miniCalendarGrid.appendChild(cell);
+  }
+}
+
+// Event Modal
+function openModal(dateString) {
+  document.getElementById('eventDate').value = new Date(dateString).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
+  eventInput.dataset.date = dateString;
+  eventInput.value = '';
+  eventSuggestion.value = '';
+  document.getElementById('timeFrom').value = '';
+  document.getElementById('timeTo').value = '';
+  document.getElementById('attendees').value = '';
+  document.querySelectorAll('.venue-check').forEach(cb => cb.checked = false);
+  renderEventsList(dateString);
+  modalEl.classList.remove('hidden');
+  setTimeout(() => modalEl.classList.add('show'), 10);
+}
+
+function closeModal() {
+  modalEl.classList.remove('show');
+  setTimeout(() => modalEl.classList.add('hidden'), 220);
+}
+
+closeModalBtn.addEventListener('click', closeModal);
+modalBackdrop.addEventListener('click', closeModal);
+
+function renderEventsList(dateString) {
+  eventsListEl.innerHTML = '';
+  const arr = events[dateString] || [];
+  if (!arr.length) {
+    eventsListEl.innerHTML = '<p class="text-gray-500 text-sm">No event requests for this day.</p>';
+    return;
+  }
+
+  arr.forEach((ev, idx) => {
+    const item = document.createElement('div');
+    item.className = 'border-2 border-black p-3 bg-gray-50';
+    item.style.fontFamily = "'Courier New', monospace";
+
+    const content = `
+      <div class="grid grid-cols-2 gap-2 text-xs mb-2">
+        <div><strong>Purpose:</strong> ${ev.text}</div>
+        <div><strong>Status:</strong> <span class="${ev.status === 'approved' ? 'text-green-600' : ev.status === 'disapproved' ? 'text-red-600' : 'text-yellow-600'} font-bold">${(ev.status || 'PENDING').toUpperCase()}</span></div>
+        <div><strong>Venue:</strong> ${ev.venues || 'N/A'}</div>
+        <div><strong>Time:</strong> ${ev.timeFrom || ''} - ${ev.timeTo || ''}</div>
+        <div><strong>Attendees:</strong> ${ev.attendees || 'N/A'}</div>
+        <div><strong>Submitted:</strong> ${new Date(ev.createdAt).toLocaleDateString()}</div>
+      </div>
+      ${ev.suggestion ? `<div class="text-xs mb-2"><strong>Equipment Needed:</strong><br/>${ev.suggestion}</div>` : ''}
+      <button class="px-3 py-1 bg-gray-200 border border-black text-xs font-bold" data-date="${dateString}" data-index="${idx}" data-action="manage">MANAGE REQUEST</button>
+    `;
+    item.innerHTML = content;
+    eventsListEl.appendChild(item);
+  });
+}
+
+eventsListEl.addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-action="manage"]');
+  if (!btn) return;
+  const date = btn.dataset.date;
+  const index = Number(btn.dataset.index);
+  openApprovalModal(date, index);
+});
+
+addEventBtn.addEventListener('click', () => {
+  const date = eventInput.dataset.date;
+  const text = eventInput.value.trim();
+  const suggestion = eventSuggestion.value.trim();
+  const timeFrom = document.getElementById('timeFrom').value;
+  const timeTo = document.getElementById('timeTo').value;
+  const attendees = document.getElementById('attendees').value;
+  const venues = Array.from(document.querySelectorAll('.venue-check:checked')).map(cb => cb.value).join(', ');
+
+  if (!text) {
+    showMessage('Please enter an event title/purpose.');
+    return;
+  }
+  if (!venues) {
+    showMessage('Please select at least one venue.');
+    return;
+  }
+  if (!timeFrom || !timeTo) {
+    showMessage('Please specify the time range.');
+    return;
+  }
+
+  if (!events[date]) events[date] = [];
+  const createdAt = new Date().toISOString();
+  events[date].push({
+    text,
+    status: 'pending',
+    createdAt,
+    suggestion,
+    timeFrom,
+    timeTo,
+    attendees,
+    venues
+  });
+  logs.unshift({ createdAt, action: 'created', text, plannedFor: date, by: 'Harvey' });
+  saveState();
+  renderEventsList(date);
+  renderMainCalendar();
+  renderLogs();
+  showMessage('Event request submitted successfully');
+});
+
+// Approval Modal
+function openApprovalModal(date, index) {
+  if (!events[date] || !events[date][index]) return;
+  currentApproval = { date, index };
+  const ev = events[date][index];
+
+  approvalEventText.textContent = ev.text;
+  approvalEventMeta.textContent = `Created: ${new Date(ev.createdAt).toLocaleString()} • Status: ${ev.status || 'pending'}`;
+  approvalEventSuggestion.textContent = ev.suggestion ? `Suggestion: ${ev.suggestion}` : '';
+
+  approvalModal.classList.remove('hidden');
+  setTimeout(() => {
+    approvalModal.classList.remove('opacity-0');
+    approvalModal.classList.add('opacity-100');
+    const mc = approvalModal.querySelector('.modal-content');
+    if (mc) {
+      mc.classList.remove('scale-95');
+      mc.classList.add('scale-100');
+    }
+  }, 10);
+}
+
+function closeApprovalModal() {
+  approvalModal.classList.add('opacity-0');
+  approvalModal.classList.remove('opacity-100');
+  const mc = approvalModal.querySelector('.modal-content');
+  if (mc) {
+    mc.classList.remove('scale-100');
+    mc.classList.add('scale-95');
+  }
+  setTimeout(() => approvalModal.classList.add('hidden'), 220);
+}
+
+approvalModalClose.addEventListener('click', closeApprovalModal);
+approvalModal.addEventListener('click', (ev) => {
+  if (ev.target === approvalModal) closeApprovalModal();
+});
+
+approvalApproveBtn.addEventListener('click', () => {
+  const { date, index } = currentApproval;
+  if (!date || index === null) return;
+  events[date][index].status = 'approved';
+  logs.unshift({ createdAt: new Date().toISOString(), action: 'approved', text: events[date][index].text, plannedFor: date, by: 'Harvey' });
+  saveState();
+  renderEventsList(date);
+  renderMainCalendar();
+  renderLogs();
+  closeApprovalModal();
+  showMessage('Event approved');
+});
+
+approvalRejectBtn.addEventListener('click', () => {
+  const { date, index } = currentApproval;
+  if (!date || index === null) return;
+  events[date][index].status = 'disapproved';
+  logs.unshift({ createdAt: new Date().toISOString(), action: 'disapproved', text: events[date][index].text, plannedFor: date, by: 'Harvey' });
+  saveState();
+  renderEventsList(date);
+  renderMainCalendar();
+  renderLogs();
+  closeApprovalModal();
+  showMessage('Event rejected');
+});
+
+// Logs
+function renderLogs() {
+  logsListEl.innerHTML = '';
+  if (!logs.length) {
+    logsListEl.innerHTML = '<p class="text-gray-500">No activity yet.</p>';
+    return;
+  }
+  logs.forEach(entry => {
+    const el = document.createElement('div');
+    el.className = 'p-3 rounded-lg border flex justify-between items-start';
+    el.innerHTML = `<div>
+                      <div class="font-medium">${entry.action.toUpperCase()} — ${entry.text}</div>
+                      <div class="text-xs text-gray-500">Planned for: ${entry.plannedFor} • by: ${entry.by}</div>
+                    </div>
+                    <div class="text-xs text-gray-400">${new Date(entry.createdAt).toLocaleString()}</div>`;
+    logsListEl.appendChild(el);
+  });
+}
+
+clearLogsBtn.addEventListener('click', () => {
+  if (!confirm('Clear all logs?')) return;
+  logs = [];
+  saveState();
+  renderLogs();
+});
+
+// Click outside mini-calendar closes it
+document.addEventListener('click', (e) => {
+  if (!miniCalendarContainer.contains(e.target) && !miniCalendarToggleBtn.contains(e.target)) {
+    miniCalendarContainer.classList.remove('show');
+  }
+});
+
+// Initialize
+function init() {
+  loadState();
+  populateSelectors();
+  renderMainCalendar();
+  renderLogs();
+  showView('calendar');
+  if (modalEl) modalEl.classList.add('hidden');
+  if (approvalModal) approvalModal.classList.add('hidden');
+}
+init();
+
+window.openModal = openModal;
+</script>
+</body>
+</html>
